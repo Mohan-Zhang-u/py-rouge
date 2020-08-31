@@ -12,7 +12,9 @@ class Rouge:
     STATS = ["f", "p", "r"]
     AVAILABLE_METRICS = {"rouge-n", "rouge-l", "rouge-w"}
     AVAILABLE_LENGTH_LIMIT_TYPES = {'words', 'bytes'}
-    REMOVE_CHAR_PATTERN = re.compile('[^A-Za-z0-9]')
+
+    # REMOVE_CHAR_PATTERN = re.compile('[^A-Za-z0-9]')
+    # REMOVE_CHAR_PATTERN_chinese = re.compile('[^\u4E00-\u9FA5A-Za-z0-9]')
 
     # Hack to not tokenize "cannot" to "can not" and consider them different as in the official ROUGE script
     KEEP_CANNOT_IN_ONE_WORD = re.compile('cannot')
@@ -24,7 +26,7 @@ class Rouge:
     WORDNET_DB_DELIMITER = '|'
     STEMMER = None
 
-    def __init__(self, metrics=None, max_n=None, limit_length=True, length_limit=665, length_limit_type='bytes', apply_avg=True, apply_best=False, stemming=True, alpha=0.5, weight_factor=1.0, ensure_compatibility=True):
+    def __init__(self, metrics=None, max_n=None, limit_length=True, length_limit=665, length_limit_type='bytes', apply_avg=True, apply_best=False, stemming=True, alpha=0.5, weight_factor=1.0, ensure_compatibility=True, language='english'):
         """
         Handle the ROUGE score computation as in the official perl script.
 
@@ -44,12 +46,21 @@ class Rouge:
           alpha: Alpha use to compute f1 score: P*R/((1-a)*P + a*R). Default:0.5
           weight_factor: Weight factor to be used for ROUGE-W. Official rouge score defines it at 1.2. Default: 1.0
           ensure_compatibility: Use same stemmer and special "hacks" to product same results as in the official perl script (besides the number of sampling if not high enough). Default:True
+          language: right now supports English and Chinese.
 
         Raises:
           ValueError: raises exception if metric is not among AVAILABLE_METRICS
           ValueError: raises exception if length_limit_type is not among AVAILABLE_LENGTH_LIMIT_TYPES
           ValueError: raises exception if weight_factor < 0
         """
+        self.language = language
+        if self.language == 'english':
+            self.REMOVE_CHAR_PATTERN = re.compile('[^A-Za-z0-9]')
+        elif self.language == 'chinese':
+            self.REMOVE_CHAR_PATTERN = re.compile('[^\u4E00-\u9FA5A-Za-z0-9]')
+        else:
+            raise NotImplementedError
+
         self.metrics = metrics[:] if metrics is not None else Rouge.DEFAULT_METRICS
         for m in self.metrics:
             if m not in Rouge.AVAILABLE_METRICS:
@@ -693,15 +704,19 @@ class Rouge:
                         break
         else:
             summary = ' '.join(sentences)
-
-        summary = Rouge.REMOVE_CHAR_PATTERN.sub(' ', summary.lower()).strip()
+        if self.language == 'english':
+            summary = self.REMOVE_CHAR_PATTERN.sub(' ', summary.lower()).strip()
+        elif self.language == 'chinese':
+            summary = self.REMOVE_CHAR_PATTERN.sub(' ', summary).strip()
+        else:
+            raise NotImplementedError
 
         # Preprocess. Hack: because official ROUGE script bring "cannot" as "cannot" and "can not" as "can not",
         # we have to hack nltk tokenizer to not transform "cannot/can not" to "can not"
         if self.ensure_compatibility:
             tokens = self.tokenize_text(Rouge.KEEP_CANNOT_IN_ONE_WORD.sub('_cannot_', summary))
         else:
-            tokens = self.tokenize_text(Rouge.REMOVE_CHAR_PATTERN.sub(' ', summary))
+            tokens = self.tokenize_text(self.REMOVE_CHAR_PATTERN.sub(' ', summary))
 
         if self.stemming:
             self.stem_tokens(tokens) # stemming in-place
@@ -758,14 +773,19 @@ class Rouge:
 
         final_sentences = []
         for sentence in sentences:
-            sentence = Rouge.REMOVE_CHAR_PATTERN.sub(' ', sentence.lower()).strip()
+            if self.language == 'english':
+                sentence = self.REMOVE_CHAR_PATTERN.sub(' ', sentence.lower()).strip()
+            elif self.language == 'chinese':
+                sentence = self.REMOVE_CHAR_PATTERN.sub(' ', sentence).strip()
+            else:
+                raise NotImplementedError
 
             # Preprocess. Hack: because official ROUGE script bring "cannot" as "cannot" and "can not" as "can not",
             # we have to hack nltk tokenizer to not transform "cannot/can not" to "can not"
             if self.ensure_compatibility:
                 tokens = self.tokenize_text(Rouge.KEEP_CANNOT_IN_ONE_WORD.sub('_cannot_', sentence))
             else:
-                tokens = self.tokenize_text(Rouge.REMOVE_CHAR_PATTERN.sub(' ', sentence))
+                tokens = self.tokenize_text(self.REMOVE_CHAR_PATTERN.sub(' ', sentence))
 
             if self.stemming:
                 self.stem_tokens(tokens) # stemming in-place

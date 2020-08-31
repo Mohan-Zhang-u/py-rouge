@@ -1,6 +1,7 @@
 # Py-rouge
 A full Python implementation of the ROUGE metric, producing same results as in the official perl implementation.
 This fixed a bug in the original py-rouge repo.
+language: right now supports English and Chinese.
 
 # Important remarks
 - The original Porter stemmer in NLTK is slightly different than the one use in the official ROUGE perl script as it has been written by end. Therefore, there might be slightly different stems for certain words. For DUC2004 dataset, I have identified these words and this script produces same stems.
